@@ -1,0 +1,16 @@
+{
+  "meta": { "nodes": 5 },
+  "nodes": [
+    { "id": 0, "lat": 0.0, "lon": 0.0, "pois": ["Depot"] },
+    { "id": 1, "lat": 0.0, "lon": 1.0, "pois": [] },
+    { "id": 2, "lat": 1.0, "lon": 0.0, "pois": ["Hospital"] },
+    { "id": 3, "lat": 2.0, "lon": 0.0, "pois": [] },
+    { "id": 4, "lat": 5.0, "lon": 5.0, "pois": ["Restaurant"] }
+  ],
+  "edges": [
+    { "id": 101, "u": 0, "v": 1, "length": 100.0, "average_time": 10.0, "oneway": false, "road_type": "primary" },
+    { "id": 102, "u": 0, "v": 2, "length": 150.0, "average_time": 15.0, "oneway": false, "road_type": "secondary" },
+    { "id": 103, "u": 1, "v": 2, "length": 120.0, "average_time": 12.0, "oneway": false, "road_type": "primary" },
+    { "id": 104, "u": 2, "v": 3, "length": 200.0, "average_time": 20.0, "oneway": true, "road_type": "secondary" }
+  ]
+}
