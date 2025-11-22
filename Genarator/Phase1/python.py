@@ -4,35 +4,75 @@ import argparse
 import math
 import os
 
-# --- Constants (Copied from your graph generator) ---
+# --- Constants for Graph Generation ---
 ROAD_TYPES = ["primary", "secondary", "tertiary", "local", "expressway"]
 POIS = ["restaurant", "hospital", "pharmacy", "hotel", "atm", "petrol station"]
-# ----------------------------------------------------
-
-# --- Haversine Distance (Utility for realistic query points) ---
-def haversine(lat1, lon1, lat2, lon2):
-    # Radius of Earth in kilometers
-    R = 6371.0
-    
-    lat1_rad = math.radians(lat1)
-    lon1_rad = math.radians(lon1)
-    lat2_rad = math.radians(lat2)
-    lon2_rad = math.radians(lon2)
-    
-    dlon = lon2_rad - lon1_rad
-    dlat = lat2_rad - lat1_rad
-    
-    a = math.sin(dlat / 2)**2 + math.cos(lat1_rad) * math.cos(lat2_rad) * math.sin(dlon / 2)**2
-    c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
-    
-    return R * c
+# -------------------------------------
 
 # -----------------------------------
-# TEST CASE GENERATOR
+# GRAPH GENERATOR (Your original function)
+# -----------------------------------
+def generate_graph(num_nodes, num_edges):
+    """
+    Creates a valid, randomly connected graph structure with required node 
+    and edge attributes (lat, lon, length, speed_profile, etc.).
+    """
+    nodes = []
+    for i in range(num_nodes):
+        # Generate coordinates within a small, localized area (e.g., Mumbai)
+        lat = 19.0 + random.random() * 0.2
+        lon = 72.8 + random.random() * 0.2
+        # Assign 0 to 2 random POIs to the node
+        pois = random.sample(POIS, random.randint(0, 2))
+        nodes.append({
+            "id": i,
+            "lat": lat,
+            "lon": lon,
+            "pois": pois
+        })
+
+    edges = []
+    edge_set = set()
+    while len(edges) < num_edges:
+        # Select two distinct nodes
+        u, v = random.sample(range(num_nodes), 2)
+        if u == v or (u, v) in edge_set or (v, u) in edge_set:
+            continue
+        edge_set.add((u, v))
+
+        # Generate realistic-looking edge attributes
+        length = round(random.uniform(50, 500), 2)  # Distance in meters
+        avg_time = round(length / random.uniform(5, 25), 2) # A simple average time
+        # 96 entries for 15-minute intervals (24 hours * 4)
+        speed_profile = [round(random.uniform(20, 60), 2) for _ in range(96)]
+
+        edges.append({
+            "id": 1000 + len(edges),
+            "u": u,
+            "v": v,
+            "length": length,
+            "average_time": avg_time,
+            "speed_profile": speed_profile,
+            "oneway": random.choice([True, False]),
+            "road_type": random.choice(ROAD_TYPES)
+        })
+
+    return {
+        "meta": {
+            "id": "autogen_graph",
+            "nodes": num_nodes,
+            "description": "Auto-generated graph for full system test"
+        },
+        "nodes": nodes,
+        "edges": edges
+    }
+
+# -----------------------------------
+# QUERY GENERATOR (Modified to handle missing 'patch')
 # -----------------------------------
 
 def generate_queries(graph_data, num_events):
-    """Generates a list of random query/update events, allowing modify_edge to omit 'patch'."""
+    """Generates a list of random query/update events."""
     
     events = []
     event_id = 1
@@ -46,7 +86,7 @@ def generate_queries(graph_data, num_events):
         # Weighted random choice of event type
         event_type = random.choices(
             ["shortest_path", "knn", "modify_edge", "remove_edge"],
-            weights=[40, 30, 20, 10],  # Prioritize queries over updates
+            weights=[40, 30, 20, 10],  
             k=1
         )[0]
         
@@ -63,10 +103,8 @@ def generate_queries(graph_data, num_events):
             if random.random() < 0.6: 
                 cons = {}
                 if random.random() < 0.5 and len(node_ids) > 5:
-                    # Forbidden nodes
                     cons["forbidden_nodes"] = random.sample(node_ids, random.randint(1, min(5, len(node_ids) // 5)))
                 if random.random() < 0.5:
-                    # Forbidden road types
                     cons["forbidden_road_types"] = random.sample(ROAD_TYPES, random.randint(1, 2))
                 
                 if cons:
@@ -81,7 +119,7 @@ def generate_queries(graph_data, num_events):
             valid_pois = [p for node in all_nodes for p in node["pois"]]
             event["poi"] = random.choice(valid_pois) if valid_pois else random.choice(POIS)
             
-            # Generate a query point near a random existing node for better test coverage
+            # Generate a query point near a random existing node 
             ref_node = random.choice(all_nodes)
             event["query_point"] = {
                 "lat": round(ref_node["lat"] + random.uniform(-0.005, 0.005), 6),
@@ -94,24 +132,27 @@ def generate_queries(graph_data, num_events):
             event["type"] = "modify_edge"
             event["edge_id"] = random.choice(edge_ids)
             
-            # MODIFICATION START: Randomly skip adding the "patch" key
-            if random.random() < 0.2: 
-                # 20% chance to generate the event without the 'patch' field
-                pass 
-            else:
-                # 80% chance to generate a proper patch
+            # MODIFICATION: Randomly skip adding the "patch" key (20% chance)
+            if random.random() >= 0.2: 
+                # 80% chance to generate a patch
                 patch = {}
                 patch_type = random.choice(["length", "speed_profile", "road_type"])
                 
                 if patch_type == "length":
                     patch["length"] = round(random.uniform(50, 500), 2)
                 elif patch_type == "speed_profile":
-                    patch["speed_profile"] = [round(random.uniform(20, 60), 2) for _ in range(96)]
+                    # Update just one time bin or the whole profile
+                    if random.random() < 0.3:
+                        patch["speed_profile"] = [round(random.uniform(20, 60), 2) for _ in range(96)]
+                    else:
+                        # Test partial updates if your system supports it, otherwise update the whole array
+                        patch["speed_profile"] = [round(random.uniform(20, 60), 2) for _ in range(96)] 
+
                 elif patch_type == "road_type":
                     patch["road_type"] = random.choice(ROAD_TYPES)
                 
                 event["patch"] = patch
-            # MODIFICATION END
+            # If the random check fails (20% of the time), the "patch" field is omitted.
                 
         elif event_type == "remove_edge":
             # --- Remove Edge Update ---
@@ -127,39 +168,6 @@ def generate_queries(graph_data, num_events):
 # -----------------------------------
 # MAIN EXECUTION
 # -----------------------------------
-# You would need to ensure your 'generate_graph' function is accessible in this scope.
-
-def generate_graph(num_nodes, num_edges):
-    # Dummy implementation of your original graph generator for completeness
-    nodes = []
-    for i in range(num_nodes):
-        lat = 19.0 + random.random() * 0.2
-        lon = 72.8 + random.random() * 0.2
-        pois = random.sample(POIS, random.randint(0, 2))
-        nodes.append({"id": i, "lat": lat, "lon": lon, "pois": pois})
-
-    edges = []
-    edge_set = set()
-    while len(edges) < num_edges:
-        u, v = random.sample(range(num_nodes), 2)
-        if (u, v) in edge_set or (v, u) in edge_set: continue
-        edge_set.add((u, v))
-        
-        length = round(random.uniform(50, 500), 2)
-        avg_time = round(length / random.uniform(5, 25), 2)
-        speed_profile = [round(random.uniform(20, 60), 2) for _ in range(96)]
-
-        edges.append({
-            "id": 1000 + len(edges), "u": u, "v": v,
-            "length": length, "average_time": avg_time,
-            "speed_profile": speed_profile,
-            "oneway": random.choice([True, False]),
-            "road_type": random.choice(ROAD_TYPES)
-        })
-
-    return {"meta": {"id": "autogen_graph", "nodes": num_nodes, "description": "Auto-generated"}, "nodes": nodes, "edges": edges}
-
-
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Generate graph and a set of test queries for Phase 1.")
     parser.add_argument("--nodes", type=int, default=100, help="Number of nodes in the graph.")
